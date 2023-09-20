@@ -1,18 +1,21 @@
-# flutter_macos_menubar_example
+# flutter_timer
 
 starter template for building menubar app in flutter
 
-<img src="https://github.com/mynameiskenlee/flutter_macos_menubar_example/blob/master/Demo.png?raw=true" width="250" />
+<img src="https://github.com/mynameiskenlee/flutter_timer/blob/master/Demo.png?raw=true" width="250" />
 
-Use [multi_windows](https://github.com/mynameiskenlee/flutter_macos_menubar_example/tree/multi_windows) branch for example with addtional windows (select include all branches when using this template)
+Use [multi_windows](https://github.com/mynameiskenlee/flutter_timer/tree/multi_windows) branch for example with addtional windows (select include all branches when using this template)
 
 ![multi_windows demo](multi_window.gif)
 
--------------------------------------------------------
+---
+
 ## Getting Started (for single window menu bar app only)
+
 use this template or follow the following step in your flutter project:
 
 1. Change to Content of macos/Runner/AppDelegate.swift
+
 ```[language=swift]
 import Cocoa
 import FlutterMacOS
@@ -38,11 +41,13 @@ class AppDelegate: FlutterAppDelegate {
   }
 }
 ```
+
 2. Add a new Swift file named 'StatusBarController.swift' in XCode
-![Xcode > File > New > File...](Step2.1.png)
-![Select Swift File](Step2.2.png)
-![Name it StatusBarController.swift](Step2.3.png)
+   ![Xcode > File > New > File...](Step2.1.png)
+   ![Select Swift File](Step2.2.png)
+   ![Name it StatusBarController.swift](Step2.3.png)
 3. Add the following code to the StatusBarController.swift
+
 ```[language=swift]
 import AppKit
 
@@ -50,12 +55,12 @@ class StatusBarController {
     private var statusBar: NSStatusBar
     private var statusItem: NSStatusItem
     private var popover: NSPopover
-    
+
     init(_ popover: NSPopover) {
         self.popover = popover
         statusBar = NSStatusBar.init()
         statusItem = statusBar.statusItem(withLength: 28.0)
-        
+
         if let statusBarButton = statusItem.button {
             statusBarButton.image = #imageLiteral(resourceName: "AppIcon") //change this to your desired image
             statusBarButton.image?.size = NSSize(width: 18.0, height: 18.0)
@@ -64,7 +69,7 @@ class StatusBarController {
             statusBarButton.target = self
         }
     }
-    
+
     @objc func togglePopover(sender: AnyObject) {
         if(popover.isShown) {
             hidePopover(sender)
@@ -73,31 +78,37 @@ class StatusBarController {
             showPopover(sender)
         }
     }
-    
+
     func showPopover(_ sender: AnyObject) {
         if let statusBarButton = statusItem.button {
             popover.show(relativeTo: statusBarButton.bounds, of: statusBarButton, preferredEdge: NSRectEdge.maxY)
         }
     }
-    
+
     func hidePopover(_ sender: AnyObject) {
         popover.performClose(sender)
     }
 }
 ```
+
 4. Add the following to macos/Runner/Info.plist to hide the dock icon and application menu
+
 ```[language=xml]
 <key>LSUIElement</key>
 <true/>
 ```
+
 To close the app programmatically, use the following code
+
 ```[language=dart]
 exit(0)
 ```
+
 5. Done!
-You can now build your menubar app with flutter.
-![Complete](Demo.png)
--------------------------------------------------------
+   You can now build your menubar app with flutter.
+   ![Complete](Demo.png)
+
+---
 
 This project is a starting point for a Flutter menubar application in macOS.
 
