@@ -1,5 +1,10 @@
 import 'package:flutter/material.dart';
 
+// Doubles
+const double kSliderHeight = 20;
+const double kInactiveSliderWidth = 1;
+const double kActiveSliderWidth = 2;
+
 // Colors
 const Color kForegroundColor = Color(0xFFE9E9E9);
 const Color kBackgroundColor = Color(0xff222529);
