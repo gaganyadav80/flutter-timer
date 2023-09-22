@@ -3,23 +3,25 @@ import 'dart:async';
 import 'package:audioplayers/audioplayers.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../utils/utils_barrel.dart';
+import '../controllers/providers.dart';
+import '../utils/constants.dart';
+import '../utils/enums.dart';
+import '../utils/extensions.dart';
 import '../widgets/vertical_time_slider.dart';
 
-class TimerView extends StatefulWidget {
+class TimerView extends ConsumerStatefulWidget {
   const TimerView({super.key});
 
   @override
-  State<TimerView> createState() => _TimerViewState();
+  ConsumerState<TimerView> createState() => _TimerViewState();
 }
 
-class _TimerViewState extends State<TimerView> {
+class _TimerViewState extends ConsumerState<TimerView> {
   Timer? _timer;
   Duration _lastUsedDuration = kDefaultDuration;
-  Duration _currentDuration = kDefaultDuration;
-  TimerState _timerState = TimerState.stopped;
-  double _sliderPosition = kDefaultDuration.inMinutes.toDouble();
+  double _sliderWidth = 0;
 
   final _player = AudioPlayer();
   final _playerAssetSource = AssetSource('sounds/wrist-watch-beep.mp3');
@@ -45,33 +47,18 @@ class _TimerViewState extends State<TimerView> {
     if (_timer?.isActive ?? false) {
       _timer?.cancel();
     }
-
-    setState(() {
-      _timerState = TimerState.running;
-    });
-    _lastUsedDuration = _currentDuration;
+    ref.read(timerStateProvider.notifier).state = TimerState.running;
 
     _timer = Timer.periodic(
-      const Duration(seconds: 1),
+      1.toSeconds(),
       (timer) {
-        setState(() {
-          if (_currentDuration.inSeconds == 0) {
-            _cancelTimer(TimerState.completed);
-          } else {
-            _currentDuration -= const Duration(seconds: 1);
-          }
-        });
+        if (ref.read(currentDurationProvider).inSeconds == 0) {
+          _cancelTimer(TimerState.completed);
+        } else {
+          ref.read(currentDurationProvider.notifier).update((duration) => duration - 1.toSeconds());
+        }
       },
     );
-  }
-
-  void _cancelTimer(TimerState state) {
-    setState(() {
-      _timerState = state;
-      _handleAudioPlayback();
-      _timer?.cancel();
-      _currentDuration = _lastUsedDuration;
-    });
   }
 
   void _handleAudioPlayback() {
@@ -79,26 +66,44 @@ class _TimerViewState extends State<TimerView> {
       _player.stop();
       return;
     }
-    if (_timerState == TimerState.completed) {
+    if (ref.read(timerStateProvider) == TimerState.completed) {
       _player.play(_playerAssetSource);
     }
   }
 
-  void _handleSliderChange(double localPosition, double sliderWidth) {
-    setState(() {
-      var position = localPosition.clamp(0, sliderWidth).toDouble();
-      position = (position / 2).round() * 2;
-      var durationInMinutes = (position / sliderWidth) * kMaxDuration.inMinutes;
+  void _cancelTimer(TimerState timerState) {
+    ref.read(timerStateProvider.notifier).state = timerState;
+    _handleAudioPlayback();
+    _timer?.cancel();
+    _handleDurationChange(_lastUsedDuration);
+  }
 
-      if (position > 0) {
-        _sliderPosition = position.clamp(0, position - 2);
-      } else {
-        _sliderPosition = position.clamp(0, position);
-      }
-      _currentDuration = Duration(
-        minutes: durationInMinutes.toInt(),
-      );
-    });
+  void _handleSliderChange(double localPosition, double sliderWidth) {
+    var position = localPosition.clamp(0, sliderWidth).toDouble();
+    position = (position / 2).round() * 2;
+    var durationInMinutes = (position / sliderWidth) * kMaxDuration.inMinutes;
+
+    ref.read(sliderPositionProvider.notifier).state = position.clamp(
+      0,
+      position >= 2 ? position - 2 : position,
+    );
+
+    ref.read(currentDurationProvider.notifier).state = durationInMinutes.toMinutes();
+  }
+
+  void _handleDurationChange(Duration duration) {
+    var durationInMinutes = duration.inMinutes.clamp(0, kMaxDuration.inMinutes);
+    var sliderPosition = (durationInMinutes / kMaxDuration.inMinutes) * _sliderWidth;
+
+    sliderPosition = (sliderPosition / 2).round() * 2;
+    sliderPosition = sliderPosition.clamp(
+      0,
+      sliderPosition >= 2 ? sliderPosition - 2 : sliderPosition,
+    );
+
+    _lastUsedDuration = duration;
+    ref.read(sliderPositionProvider.notifier).state = sliderPosition;
+    ref.read(currentDurationProvider.notifier).state = duration;
   }
 
   @override
@@ -114,22 +119,22 @@ class _TimerViewState extends State<TimerView> {
               height: kSliderHeight,
               child: LayoutBuilder(
                 builder: (_, constraints) {
-                  final sliderWidth = constraints.maxWidth;
+                  _sliderWidth = constraints.maxWidth;
 
                   return GestureDetector(
                     behavior: HitTestBehavior.opaque,
                     onHorizontalDragUpdate: (DragUpdateDetails details) {
                       final localPosition = details.localPosition.dx;
-                      // Returning this method with a buffer of 20px because `_handleSliderChange` calls `setState`.
-                      // And we do not want to call setState when user is out of slider's interactive area.
-                      if (localPosition > sliderWidth + 20) {
+                      // Returning this method with a buffer of 20px because we do not want to update the widgets
+                      // when user is out of slider's interactive area.
+                      if (localPosition > _sliderWidth + 20) {
                         return;
                       }
-                      _handleSliderChange(localPosition, sliderWidth);
+                      _handleSliderChange(localPosition, _sliderWidth);
                     },
                     onTapDown: (TapDownDetails details) {
                       final localPosition = details.localPosition.dx;
-                      _handleSliderChange(localPosition, sliderWidth);
+                      _handleSliderChange(localPosition, _sliderWidth);
                     },
                     child: Stack(
                       alignment: Alignment.center,
@@ -139,13 +144,18 @@ class _TimerViewState extends State<TimerView> {
                           child: VerticalTimeSlider(),
                         ),
                         // Indicator
-                        Positioned(
-                          left: _sliderPosition,
-                          child: Container(
-                            height: kSliderHeight,
-                            width: kActiveSliderWidth,
-                            color: kForegroundColor,
-                          ),
+                        Consumer(
+                          builder: (_, ref, __) {
+                            final sliderPosition = ref.watch(sliderPositionProvider);
+                            return Positioned(
+                              left: sliderPosition,
+                              child: Container(
+                                height: kSliderHeight,
+                                width: kActiveSliderWidth,
+                                color: kForegroundColor,
+                              ),
+                            );
+                          },
                         ),
                       ],
                     ),
@@ -159,30 +169,24 @@ class _TimerViewState extends State<TimerView> {
                 _buildSuggestionButtons(
                   '5m',
                   () {
-                    setState(() {
-                      _currentDuration = const Duration(minutes: 5);
-                      _startTimer();
-                    });
+                    _startTimer();
+                    _handleDurationChange(5.toMinutes());
                   },
                 ),
                 const SizedBox(width: 16),
                 _buildSuggestionButtons(
                   '15m',
                   () {
-                    setState(() {
-                      _currentDuration = const Duration(minutes: 15);
-                      _startTimer();
-                    });
+                    _startTimer();
+                    _handleDurationChange(15.toMinutes());
                   },
                 ),
                 const SizedBox(width: 16),
                 _buildSuggestionButtons(
                   '25m',
                   () {
-                    setState(() {
-                      _currentDuration = const Duration(minutes: 25);
-                      _startTimer();
-                    });
+                    _startTimer();
+                    _handleDurationChange(25.toMinutes());
                   },
                 ),
                 const Spacer(),
@@ -203,17 +207,22 @@ class _TimerViewState extends State<TimerView> {
               crossAxisAlignment: CrossAxisAlignment.end,
               children: [
                 CupertinoButton(
-                  child: Text(
-                    _timerState == TimerState.running ? 'stop' : 'start',
-                    style: const TextStyle(
-                      fontSize: 13,
-                      color: kForegroundColor,
-                    ),
+                  child: Consumer(
+                    builder: (_, ref, __) {
+                      final timerState = ref.watch(timerStateProvider);
+                      return Text(
+                        timerState == TimerState.running ? 'stop' : 'start',
+                        style: const TextStyle(
+                          fontSize: 13,
+                          color: kForegroundColor,
+                        ),
+                      );
+                    },
                   ),
                   padding: EdgeInsets.zero,
                   minSize: 0,
                   onPressed: () async {
-                    if (_timerState == TimerState.running) {
+                    if (ref.read(timerStateProvider.notifier).state == TimerState.running) {
                       _cancelTimer(TimerState.stopped);
                     } else {
                       _startTimer();
@@ -221,12 +230,18 @@ class _TimerViewState extends State<TimerView> {
                   },
                 ),
                 const Spacer(),
-                Text(
-                  _currentDuration.formatToHHMMss(),
-                  style: const TextStyle(
-                    fontWeight: FontWeight.w300,
-                    color: kForegroundColor,
-                  ),
+                Consumer(
+                  builder: (_, ref, __) {
+                    final currentDuration = ref.watch(currentDurationProvider);
+                    return Text(
+                      currentDuration.formatToHHMMss(),
+                      style: const TextStyle(
+                        fontSize: 32,
+                        fontWeight: FontWeight.w300,
+                        color: kForegroundColor,
+                      ),
+                    );
+                  },
                 ),
               ],
             ),

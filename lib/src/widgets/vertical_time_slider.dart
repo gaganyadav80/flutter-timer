@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-import '../utils/utils_barrel.dart';
+import '../utils/constants.dart';
 
 class VerticalTimeSlider extends StatelessWidget {
   const VerticalTimeSlider({

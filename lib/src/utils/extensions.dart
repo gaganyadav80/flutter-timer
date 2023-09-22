@@ -15,3 +15,8 @@ extension DurationExtension on Duration {
     return '$formattedMinutes:$formattedSeconds';
   }
 }
+
+extension NumExtension on num {
+  Duration toSeconds() => Duration(seconds: toInt());
+  Duration toMinutes() => Duration(minutes: toInt());
+}
