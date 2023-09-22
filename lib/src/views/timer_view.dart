@@ -3,7 +3,6 @@ import 'dart:async';
 import 'package:audioplayers/audioplayers.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
-import 'package:velocity_x/velocity_x.dart';
 
 import '../utils/utils_barrel.dart';
 import '../widgets/vertical_time_slider.dart';
@@ -18,9 +17,9 @@ class TimerView extends StatefulWidget {
 class _TimerViewState extends State<TimerView> {
   Timer? _timer;
   Duration _lastUsedDuration = kDefaultDuration;
-  Duration _duration = kDefaultDuration;
+  Duration _currentDuration = kDefaultDuration;
   TimerState _timerState = TimerState.stopped;
-  int _sliderValue = kDefaultDuration.inMinutes;
+  double _sliderPosition = kDefaultDuration.inMinutes.toDouble();
 
   final _player = AudioPlayer();
   final _playerAssetSource = AssetSource('sounds/wrist-watch-beep.mp3');
@@ -50,16 +49,16 @@ class _TimerViewState extends State<TimerView> {
     setState(() {
       _timerState = TimerState.running;
     });
-    _lastUsedDuration = _duration;
+    _lastUsedDuration = _currentDuration;
 
     _timer = Timer.periodic(
       const Duration(seconds: 1),
       (timer) {
         setState(() {
-          if (_duration.inSeconds == 0) {
+          if (_currentDuration.inSeconds == 0) {
             _cancelTimer(TimerState.completed);
           } else {
-            _duration -= const Duration(seconds: 1);
+            _currentDuration -= const Duration(seconds: 1);
           }
         });
       },
@@ -71,7 +70,7 @@ class _TimerViewState extends State<TimerView> {
       _timerState = state;
       _handleAudioPlayback();
       _timer?.cancel();
-      _duration = _lastUsedDuration;
+      _currentDuration = _lastUsedDuration;
     });
   }
 
@@ -83,6 +82,23 @@ class _TimerViewState extends State<TimerView> {
     if (_timerState == TimerState.completed) {
       _player.play(_playerAssetSource);
     }
+  }
+
+  void _handleSliderChange(double localPosition, double sliderWidth) {
+    setState(() {
+      var position = localPosition.clamp(0, sliderWidth).toDouble();
+      position = (position / 2).round() * 2;
+      var durationInMinutes = (position / sliderWidth) * kMaxDuration.inMinutes;
+
+      if (position > 0) {
+        _sliderPosition = position.clamp(0, position - 2);
+      } else {
+        _sliderPosition = position.clamp(0, position);
+      }
+      _currentDuration = Duration(
+        minutes: durationInMinutes.toInt(),
+      );
+    });
   }
 
   @override
@@ -98,24 +114,22 @@ class _TimerViewState extends State<TimerView> {
               height: kSliderHeight,
               child: LayoutBuilder(
                 builder: (_, constraints) {
-                  final width = constraints.maxWidth.floor();
+                  final sliderWidth = constraints.maxWidth;
 
                   return GestureDetector(
                     behavior: HitTestBehavior.opaque,
-                    onHorizontalDragUpdate: (details) {
-                      if (details.localPosition.dx > width + 20) {
+                    onHorizontalDragUpdate: (DragUpdateDetails details) {
+                      final localPosition = details.localPosition.dx;
+                      // Returning this method with a buffer of 20px because `_handleSliderChange` calls `setState`.
+                      // And we do not want to call setState when user is out of slider's interactive area.
+                      if (localPosition > sliderWidth + 20) {
                         return;
                       }
-                      setState(() {
-                        _sliderValue = ((details.localPosition.dx).clamp(0, width - 1) / 2).floor();
-                        _duration = Duration(minutes: _sliderValue);
-                      });
+                      _handleSliderChange(localPosition, sliderWidth);
                     },
-                    onTapDown: (details) {
-                      setState(() {
-                        _sliderValue = ((details.localPosition.dx).clamp(0, width - 1) / 2).floor();
-                        _duration = Duration(minutes: _sliderValue);
-                      });
+                    onTapDown: (TapDownDetails details) {
+                      final localPosition = details.localPosition.dx;
+                      _handleSliderChange(localPosition, sliderWidth);
                     },
                     child: Stack(
                       alignment: Alignment.center,
@@ -126,7 +140,7 @@ class _TimerViewState extends State<TimerView> {
                         ),
                         // Indicator
                         Positioned(
-                          left: _sliderValue.toDouble() * 2,
+                          left: _sliderPosition,
                           child: Container(
                             height: kSliderHeight,
                             width: kActiveSliderWidth,
@@ -146,7 +160,7 @@ class _TimerViewState extends State<TimerView> {
                   '5m',
                   () {
                     setState(() {
-                      _duration = const Duration(minutes: 5);
+                      _currentDuration = const Duration(minutes: 5);
                       _startTimer();
                     });
                   },
@@ -156,7 +170,7 @@ class _TimerViewState extends State<TimerView> {
                   '15m',
                   () {
                     setState(() {
-                      _duration = const Duration(minutes: 15);
+                      _currentDuration = const Duration(minutes: 15);
                       _startTimer();
                     });
                   },
@@ -166,7 +180,7 @@ class _TimerViewState extends State<TimerView> {
                   '25m',
                   () {
                     setState(() {
-                      _duration = const Duration(minutes: 25);
+                      _currentDuration = const Duration(minutes: 25);
                       _startTimer();
                     });
                   },
@@ -189,16 +203,13 @@ class _TimerViewState extends State<TimerView> {
               crossAxisAlignment: CrossAxisAlignment.end,
               children: [
                 CupertinoButton(
-                  child: () {
-                    if (_timerState == TimerState.running) {
-                      return 'stop';
-                    }
-                    return 'start';
-                  }()
-                      .text
-                      .size(13)
-                      .color(kForegroundColor)
-                      .make(),
+                  child: Text(
+                    _timerState == TimerState.running ? 'stop' : 'start',
+                    style: const TextStyle(
+                      fontSize: 13,
+                      color: kForegroundColor,
+                    ),
+                  ),
                   padding: EdgeInsets.zero,
                   minSize: 0,
                   onPressed: () async {
@@ -210,7 +221,13 @@ class _TimerViewState extends State<TimerView> {
                   },
                 ),
                 const Spacer(),
-                _duration.formatToHHMMss().text.size(32).light.color(kForegroundColor).make(),
+                Text(
+                  _currentDuration.formatToHHMMss(),
+                  style: const TextStyle(
+                    fontWeight: FontWeight.w300,
+                    color: kForegroundColor,
+                  ),
+                ),
               ],
             ),
           ],
@@ -224,7 +241,13 @@ class _TimerViewState extends State<TimerView> {
     VoidCallback onTap,
   ) {
     return CupertinoButton(
-      child: time.text.size(13).color(kForegroundColor).make(),
+      child: Text(
+        time,
+        style: const TextStyle(
+          fontSize: 13,
+          color: kForegroundColor,
+        ),
+      ),
       padding: EdgeInsets.zero,
       minSize: 0,
       onPressed: onTap,

@@ -12,3 +12,4 @@ const Color kTimeSliderInactiveColor = Color(0xFF42484E);
 
 // Durations
 const Duration kDefaultDuration = Duration(minutes: 25);
+const Duration kMaxDuration = Duration(minutes: 120);
