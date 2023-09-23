@@ -27,17 +27,6 @@ class _TimerViewState extends ConsumerState<TimerView> {
   final _playerAssetSource = AssetSource('sounds/wrist-watch-beep.mp3');
 
   @override
-  void initState() {
-    super.initState();
-    _player.onPlayerStateChanged.listen((event) {
-      // Keep playing the audio until manually stopped.
-      if (event == PlayerState.completed) {
-        _player.resume();
-      }
-    });
-  }
-
-  @override
   void dispose() {
     _cancelTimer(TimerState.stopped);
     super.dispose();
@@ -73,9 +62,7 @@ class _TimerViewState extends ConsumerState<TimerView> {
 
   void _cancelTimer(TimerState timerState) {
     ref.read(timerStateProvider.notifier).state = timerState;
-    _handleAudioPlayback();
     _timer?.cancel();
-    _handleDurationChange(_lastUsedDuration);
   }
 
   void _handleSliderChange(double localPosition, double sliderWidth) {
@@ -108,6 +95,16 @@ class _TimerViewState extends ConsumerState<TimerView> {
 
   @override
   Widget build(BuildContext context) {
+    ref.listen(
+      timerStateProvider,
+      (_, TimerState timerState) {
+        _handleDurationChange(_lastUsedDuration);
+        if (timerState == TimerState.completed) {
+          _handleAudioPlayback();
+        }
+      },
+    );
+
     return Material(
       color: kBackgroundColor,
       child: Padding(
@@ -170,7 +167,7 @@ class _TimerViewState extends ConsumerState<TimerView> {
                   '5m',
                   () {
                     _startTimer();
-                    _handleDurationChange(5.toMinutes());
+                    _handleDurationChange(10.toSeconds());
                   },
                 ),
                 const SizedBox(width: 16),
