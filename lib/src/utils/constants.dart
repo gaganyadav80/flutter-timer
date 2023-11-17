@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
 
+// String
+const String kAppName = 'Flutter Timer';
+
 // Doubles
 const double kSliderHeight = 20;
 const double kInactiveSliderWidth = 1;

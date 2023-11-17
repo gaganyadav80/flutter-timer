@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../controllers/providers.dart';
+import '../repository/notifications_api.dart';
 import '../utils/constants.dart';
 import '../utils/enums.dart';
 import '../utils/extensions.dart';
@@ -25,6 +26,7 @@ class _TimerViewState extends ConsumerState<TimerView> {
 
   final _player = AudioPlayer();
   final _playerAssetSource = AssetSource('sounds/wrist-watch-beep.mp3');
+  final notifications = NotificationsApi.instance;
 
   @override
   void dispose() {
@@ -43,6 +45,9 @@ class _TimerViewState extends ConsumerState<TimerView> {
       (timer) {
         if (ref.read(currentDurationProvider).inSeconds == 0) {
           _cancelTimer(TimerState.completed);
+          notifications.show(
+            'Time to relax',
+          );
         } else {
           ref.read(currentDurationProvider.notifier).update((duration) => duration - 1.toSeconds());
         }

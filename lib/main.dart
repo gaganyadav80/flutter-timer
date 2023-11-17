@@ -1,9 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import 'src/repository/notifications_api.dart';
 import 'src/views/timer_view.dart';
 
 void main() {
+  WidgetsFlutterBinding.ensureInitialized;
+  NotificationsApi.instance.ensureInitialized;
+
   runApp(
     const ProviderScope(
       child: MyApp(),
